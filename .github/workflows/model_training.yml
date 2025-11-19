@@ -28,3 +28,6 @@ jobs:
           name: "Model Release ${{ github.run_number }}"
           files: output/model.joblib
           prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.TRAIN_PAT }}
+
