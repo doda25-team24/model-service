@@ -1,0 +1,30 @@
+name: Train and Release Model
+on:
+  workflow_dispatch:
+
+jobs:
+  train-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Train model
+        run: python src/text_classification.py
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: model-v${{ github.run_number }}
+          name: "Model Release ${{ github.run_number }}"
+          files: output/model.joblib
+          prerelease: false
