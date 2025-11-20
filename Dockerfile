@@ -46,6 +46,8 @@ COPY src /model-service/src/
 # Install ONLY the necessary dependencies (those in requirements.txt)
 RUN pip install --no-cache-dir -r requirements.txt
 
+ENV MODEL_PORT=8081
+
 # Expose the service port (8081 as per README)
 EXPOSE 8081
 
