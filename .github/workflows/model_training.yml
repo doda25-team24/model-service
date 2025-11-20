@@ -1,14 +1,60 @@
-name: Train and Release Model
+name: Train, Build and Release (Automated)
+
 on:
   workflow_dispatch:
+    inputs:
+      prerelease:
+        description: 'Mark as release (defaults to prerelease)'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
 
 jobs:
   train-release:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
 
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Calculate Next Version
+        run: |
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          CURRENT_VERSION=${LAST_TAG#v}
+
+          MAJOR=$(echo "$CURRENT_VERSION" | cut -d . -f 1)
+          MINOR=$(echo "$CURRENT_VERSION" | cut -d . -f 2)
+          PATCH=$(echo "$CURRENT_VERSION" | cut -d . -f 3)
+
+          NEW_PATCH=$((PATCH + 1))
+          NEW_TAG="v$MAJOR.$MINOR.$NEW_PATCH"
+
+          echo "Previous Version: $LAST_TAG"
+          echo "New Version: $NEW_TAG"
+
+          echo "VERSION=$NEW_TAG" >> $GITHUB_ENV
+          echo "VERSION_MAJOR=$MAJOR" >> $GITHUB_ENV
+          echo "VERSION_MINOR=$MINOR" >> $GITHUB_ENV
+          echo "VERSION_PATCH=$NEW_PATCH" >> $GITHUB_ENV
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -16,18 +62,52 @@ jobs:
           python-version: "3.12"
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: pip install --no-cache-dir -r requirements.txt
 
-      - name: Train model
-        run: python src/text_classification.py
+      - name: Prepare data and Train model
+        run: |
+          mkdir -p output
+          python src/read_data.py
+          python src/text_preprocessing.py
+          python src/text_classification.py
 
-      - name: Create Release
+      - name: Verify model output
+        run: |
+          if [ ! -f output/model.joblib ]; then
+            echo "ERROR: Model file not generated"
+            exit 1
+          fi
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.VERSION }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+
+      - name: Push New Tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git tag ${{ env.VERSION }}
+          git push origin ${{ env.VERSION }}
+
+      - name: Upload model as workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: model-artifact-${{ env.VERSION }}
+          path: output/model.joblib
+
+      - name: Create Release and Attach Model
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: model-v${{ github.run_number }}
-          name: "Model Release ${{ github.run_number }}"
+          tag_name: ${{ env.VERSION }}
+          name: "Model Release ${{ env.VERSION }}"
           files: output/model.joblib
-          prerelease: false
+          prerelease: true
+          make_latest: true
         env:
-          GITHUB_TOKEN: ${{ secrets.TRAIN_PAT }}
-
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
