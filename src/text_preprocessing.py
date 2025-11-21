@@ -4,6 +4,7 @@ Preprocess the data to be trained by the learning algorithm.
 
 import pandas as pd
 import numpy as np
+import os
 
 import string
 import nltk
@@ -72,7 +73,10 @@ def _preprocess(messages):
     return preprocessed_data
 
 def prepare(message):
-    preprocessor = load('output/preprocessor.joblib')
+    model_dir = os.getenv('MODEL_DIR', 'models') 
+    preprocessor_path = os.path.join(model_dir, 'preprocessor.joblib')
+    
+    preprocessor = load(preprocessor_path) 
     return preprocessor.transform([message])
 
 

@@ -17,11 +17,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 # 1. Create the 'output' folder
 # 2. Execute the read_data, preprocessing, and classification scripts.
 # The trained models (.joblib) will be saved in /model-service/output
-RUN mkdir output && \
+RUN mkdir output && mkdir models && \
     python src/read_data.py && \
     python src/text_preprocessing.py && \
     python src/text_classification.py
-
 
 # ----------------------------------------------------------------------
 
@@ -32,21 +31,16 @@ FROM python:3.12.9-slim AS production
 # Set the working directory
 WORKDIR /model-service
 
-# Copy essential files from the 'trainer' stage and the local directory:
-# 1. The trained model (.joblib) from 'trainer'
-# 2. requirements.txt
-# 3. The entire source code directory 'src' (CRITICAL FIX for ModuleNotFoundError)
-COPY --from=trainer /model-service/output /model-service/output
+# Copy only source code and requirements - NO hard-coded model
 COPY requirements.txt .
-
-# *** CRITICAL CORRECTION LINE: Copy the entire 'src' folder ***
-# This ensures that 'serve_model.py' can import 'text_preprocessing.py'
 COPY src /model-service/src/
 
 # Install ONLY the necessary dependencies (those in requirements.txt)
 RUN pip install --no-cache-dir -r requirements.txt
 
+# environment variables allow configuring the model service
 ENV MODEL_PORT=8081
+ENV MODEL_DIR=/model-service/models
 
 # Expose the service port (8081 as per README)
 EXPOSE 8081
