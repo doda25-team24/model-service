@@ -73,7 +73,7 @@ def _preprocess(messages):
     return preprocessed_data
 
 def prepare(message):
-    model_dir = os.getenv('MODEL_DIR', 'models') 
+    model_dir = os.getenv('MODEL_DIR', 'output') 
     preprocessor_path = os.path.join(model_dir, 'preprocessor.joblib')
     
     preprocessor = load(preprocessor_path) 

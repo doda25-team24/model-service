@@ -14,9 +14,9 @@ from text_preprocessing import prepare, _extract_message_len, _text_process
 app = Flask(__name__)
 swagger = Swagger(app)
 
-MODEL_DIR = os.getenv('MODEL_DIR', '/model-service/models')
+MODEL_DIR = os.getenv('MODEL_DIR', '/model-service/output')
 MODEL_PATH = os.path.join(MODEL_DIR, 'model.joblib')
-MODEL_URL = os.getenv('MODEL_URL', '')
+MODEL_URL = os.getenv('MODEL_URL', '/model-service/output/model.joblib')
 model = None
 
 def load_or_download_model():
@@ -93,6 +93,31 @@ def predict():
     }
     print(res)
     return jsonify(res)
+
+@app.route('/health', methods=['GET'])
+def health():
+    """Health check endpoint"""
+    try:
+        # Check if model is loaded
+        model_loaded = model is not None
+        
+        if model_loaded:
+            return jsonify({
+                'status': 'healthy',
+                'model_loaded': True
+            }), 200
+        else:
+            return jsonify({
+                'status': 'unhealthy',
+                'model_loaded': False,
+                'error': 'Model not loaded'
+            }), 503
+    except Exception as e:
+        return jsonify({
+            'status': 'unhealthy',
+            'error': str(e)
+        }), 503
+
 
 if __name__ == '__main__':
     load_or_download_model()
