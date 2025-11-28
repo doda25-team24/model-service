@@ -17,7 +17,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # 1. Create the 'output' folder
 # 2. Execute the read_data, preprocessing, and classification scripts.
 # The trained models (.joblib) will be saved in /model-service/output
-RUN mkdir output && mkdir models && \
+RUN mkdir output \
     python src/read_data.py && \
     python src/text_preprocessing.py && \
     python src/text_classification.py
@@ -40,7 +40,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # environment variables allow configuring the model service
 ENV MODEL_PORT=8081
-ENV MODEL_DIR=/model-service/models
+ENV MODEL_DIR=/model-service/output
 
 # Expose the service port (8081 as per README)
 EXPOSE 8081

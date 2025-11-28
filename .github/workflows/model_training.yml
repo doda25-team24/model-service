@@ -86,7 +86,34 @@ jobs:
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.VERSION }}
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-
+      
+      - name: Test Docker image
+        run: |
+          # Start container
+          docker run -d -p 8081:8081 \
+            -e GITHUB_REPO=${{ github.repository }} \
+            --name test-container \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.VERSION }}
+          
+          # Wait for service to start and models to load
+          echo "Waiting for service to start..."
+          sleep 45
+          
+          # Health check
+          echo "Testing health endpoint..."
+          curl -f http://localhost:8081/health || exit 1
+          
+          # Test prediction endpoint
+          echo "Testing prediction endpoint..."
+          curl -f -X POST http://localhost:8081/predict \
+            -H "Content-Type: application/json" \
+            -d '{"sms": "test message"}' || exit 1
+          
+          echo "All tests passed!"
+          
+          # Cleanup
+          docker stop test-container
+          docker rm test-container
       - name: Push New Tag
         run: |
           git config user.name "github-actions[bot]"
