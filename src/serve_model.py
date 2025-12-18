@@ -8,8 +8,13 @@ import joblib
 from flask import Flask, jsonify, request
 from flasgger import Swagger
 import pandas as pd
+import time
+
 
 from text_preprocessing import prepare, _extract_message_len, _text_process
+from prometheus_client import start_http_server, Counter, Gauge, Histogram, make_wsgi_app
+from werkzeug.middleware.dispatcher import DispatcherMiddleware
+
 
 app = Flask(__name__)
 swagger = Swagger(app)
@@ -18,6 +23,29 @@ MODEL_DIR = os.getenv('MODEL_DIR', '/model-service/output')
 MODEL_PATH = os.path.join(MODEL_DIR, 'model.joblib')
 MODEL_URL = os.getenv('MODEL_URL', '/model-service/output/model.joblib')
 model = None
+
+sms_checks_total = Counter(
+    "sms_checks_total",
+    "Total number of SMS predictions",
+    ["result"]
+)
+
+# Gauge: number of active prediction requests
+active_requests = Gauge(
+    "sms_active_requests",
+    "Number of active SMS prediction requests"
+)
+
+# Histogram: prediction latency
+prediction_latency_seconds = Histogram(
+    "sms_prediction_latency_seconds",
+    "Latency of SMS prediction in seconds"
+)
+
+app.wsgi_app = DispatcherMiddleware(app.wsgi_app, {
+    '/metrics': make_wsgi_app()
+})
+
 
 def load_or_download_model():
     """
@@ -80,19 +108,30 @@ def predict():
       200:
         description: "The result of the classification: 'spam' or 'ham'."
     """
-    input_data = request.get_json()
-    sms = input_data.get('sms')
-    processed_sms = prepare(sms)
-    global model 
-    prediction = model.predict(processed_sms)[0]
-    
-    res = {
-        "result": prediction,
-        "classifier": "decision tree",
-        "sms": sms
-    }
-    print(res)
-    return jsonify(res)
+    active_requests.inc()  # increment active request gauge
+    start_time = time.time()
+
+    try:
+        input_data = request.get_json()
+        sms = input_data.get('sms')
+        processed_sms = prepare(sms)
+        global model 
+        prediction = model.predict(processed_sms)[0]
+
+        # Increment counter with label
+        sms_checks_total.labels(result=prediction).inc()
+
+        res = {
+            "result": prediction,
+            "classifier": "decision tree",
+            "sms": sms
+        }
+        return jsonify(res)
+    finally:
+        elapsed = time.time() - start_time
+        prediction_latency_seconds.observe(elapsed)  # record histogram
+        active_requests.dec()  # decrement gauge
+
 
 @app.route('/health', methods=['GET'])
 def health():
