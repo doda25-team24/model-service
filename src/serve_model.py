@@ -157,10 +157,9 @@ def health():
             'error': str(e)
         }), 503
 
-
 if __name__ == '__main__':
     load_or_download_model()
-    # Read port from environment, default 8081
-    port = int(os.getenv("MODEL_PORT", "8081"))
+    # Change default to 8080
+    port = int(os.getenv("MODEL_PORT", "8080"))
     print(f"Starting Flask on port {port}")
     app.run(host="0.0.0.0", port=port, debug=True)
