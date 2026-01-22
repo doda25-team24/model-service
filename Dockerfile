@@ -26,7 +26,7 @@ COPY requirements.txt .
 COPY src /model-service/src/
 
 # --- CRITICAL FIX: Copy the "Brain" from Stage 1 ---
-COPY --from=trainer /model-service/output /model-service/output
+#COPY --from=trainer /model-service/output /model-service/output
 # --------------------------------------------------
 
 RUN pip install --no-cache-dir -r requirements.txt
